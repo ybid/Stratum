@@ -1,34 +1,50 @@
+import { z } from 'zod';
+
 export type ColumnType = 'text' | 'datetime' | 'enum' | 'number' | 'checkbox';
 
-export interface ColumnDef {
-  id: string;
-  name: string;
-  type: ColumnType;
-  options?: string[]; // enum type values
-  width?: number;
-}
+export const ColumnDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['text', 'datetime', 'enum', 'number', 'checkbox']),
+  options: z.array(z.string()).optional(),
+  width: z.number().optional(),
+});
 
-export interface TaskRow {
-  id: string;
-  indent: number;
-  cells: Record<string, string | number | boolean | null>;
-  collapsed: boolean;
-}
+export const TaskRowSchema = z.object({
+  id: z.string(),
+  indent: z.number().int().min(0),
+  cells: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  collapsed: z.boolean(),
+  tags: z.array(z.string()).optional(),
+});
 
-export interface Directory {
-  id: string;
-  name: string;
-  collapsed: boolean;
-}
+export const DirectorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  collapsed: z.boolean(),
+});
 
-export interface Task {
-  id: string;
-  directoryId: string;
-  name: string;
-  columns: ColumnDef[];
-  rows: TaskRow[];
-}
+export const TaskSchema = z.object({
+  id: z.string(),
+  directoryId: z.string(),
+  name: z.string(),
+  columns: z.array(ColumnDefSchema),
+  rows: z.array(TaskRowSchema),
+});
 
+export const TaskStateSchema = z.object({
+  directories: z.array(DirectorySchema),
+  tasks: z.array(TaskSchema),
+  activeTaskId: z.string().nullable(),
+  sidebarOpen: z.boolean(),
+  viewMode: z.enum(['outline', 'flat']),
+  locale: z.enum(['zh', 'en']),
+});
+
+export type ColumnDef = z.infer<typeof ColumnDefSchema>;
+export type TaskRow = z.infer<typeof TaskRowSchema>;
+export type Directory = z.infer<typeof DirectorySchema>;
+export type Task = z.infer<typeof TaskSchema>;
 export type ViewMode = 'outline' | 'flat';
 export type Locale = 'zh' | 'en';
 
@@ -40,3 +56,5 @@ export interface TaskState {
   viewMode: ViewMode;
   locale: Locale;
 }
+
+export type ValidatedTaskState = z.infer<typeof TaskStateSchema>;

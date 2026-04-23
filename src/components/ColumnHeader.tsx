@@ -8,7 +8,13 @@ import { ColumnConfigModal } from './ColumnConfigModal';
 
 type ModalTarget = { type: 'add' } | { type: 'edit'; columnId: string } | null;
 
-export function ColumnHeader({ columns }: { columns: ColumnDef[] }) {
+interface ColumnHeaderProps {
+  columns: ColumnDef[];
+  onSort?: (columnId: string) => void;
+  sortConfig?: { columnId: string; direction: 'asc' | 'desc' } | null;
+}
+
+export function ColumnHeader({ columns, onSort, sortConfig }: ColumnHeaderProps) {
   const locale = useTaskStore((s) => s.locale);
   const updateColumn = useTaskStore((s) => s.updateColumn);
   const [modalTarget, setModalTarget] = useState<ModalTarget>(null);
@@ -63,8 +69,14 @@ export function ColumnHeader({ columns }: { columns: ColumnDef[] }) {
               e.preventDefault();
               setModalTarget({ type: 'edit', columnId: col.id });
             }}
+            onClick={() => onSort?.(col.id)}
           >
             <span className="truncate">{col.name}</span>
+            {sortConfig?.columnId === col.id && (
+              <span className="ml-1 text-blue-500">
+                {sortConfig.direction === 'asc' ? '↑' : '↓'}
+              </span>
+            )}
             {/* Resize handle — separate from the clickable area */}
             <div
               className="absolute top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-zinc-400 dark:hover:bg-zinc-500 active:bg-blue-400 transition-colors z-10"

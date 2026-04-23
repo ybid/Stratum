@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTaskStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import type { Directory } from '@/lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export function Sidebar() {
   const directories = useTaskStore((s) => s.directories);
@@ -24,6 +25,11 @@ export function Sidebar() {
   const [renameValue, setRenameValue] = useState('');
   const [renameType, setRenameType] = useState<'directory' | 'task'>('directory');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'directory' | 'task'; id: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'directory' | 'task'; id: string } | null>(null);
+
+  const confirmMessage = confirmDelete?.type === 'directory'
+    ? t(locale, 'confirmDeleteDirectory')
+    : t(locale, 'confirmDeleteTask');
 
   function handleContextMenu(e: React.MouseEvent, type: 'directory' | 'task', id: string) {
     e.preventDefault();
@@ -109,6 +115,20 @@ export function Sidebar() {
       </div>
 
       {/* Context menu */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={locale === 'zh' ? '确认删除' : 'Confirm Delete'}
+        message={confirmMessage}
+        locale={locale}
+        onConfirm={() => {
+          if (confirmDelete) {
+            if (confirmDelete.type === 'directory') removeDirectory(confirmDelete.id);
+            else removeTask(confirmDelete.id);
+          }
+          setConfirmDelete(null);
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -116,11 +136,7 @@ export function Sidebar() {
           locale={locale}
           onRename={() => startRename(contextMenu.type, contextMenu.id)}
           onDelete={() => {
-            if (contextMenu.type === 'directory') {
-              if (confirm(t(locale, 'confirmDeleteDirectory'))) removeDirectory(contextMenu.id);
-            } else {
-              if (confirm(t(locale, 'confirmDeleteTask'))) removeTask(contextMenu.id);
-            }
+            setConfirmDelete({ type: contextMenu.type, id: contextMenu.id });
             setContextMenu(null);
           }}
           onAddTask={
