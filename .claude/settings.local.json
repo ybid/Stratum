@@ -6,7 +6,25 @@
       "Bash(npx tsc *)",
       "Bash(npx next *)",
       "Bash(taskkill /PID 4376 /F)",
-      "Bash(cmd //c \"taskkill /PID 4376 /F\")"
+      "Bash(cmd //c \"taskkill /PID 4376 /F\")",
+      "Bash(pnpm dev *)",
+      "PowerShell(pnpm dev *)",
+      "Bash(where.exe pnpm *)",
+      "Bash(npm config *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:9000)",
+      "Bash(mysql *)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(net start *)",
+      "Bash(sc query *)",
+      "Bash(/d/wamp64/bin/mysql/mysql5.7.31/bin/mysql.exe *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const {execSync} = require\\('child_process'\\); execSync\\('npx pnpm add mysql2', {stdio: 'inherit'}\\);\")",
+      "Bash(node node_modules/.bin/pnpm add mysql2)",
+      "Bash(corepack enable *)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 7916)",
+      "Bash(taskkill *)"
     ]
   }
 }

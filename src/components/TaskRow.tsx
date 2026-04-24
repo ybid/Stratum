@@ -40,6 +40,7 @@ export function TaskRow({
   const updateCell = useTaskStore((s) => s.updateCell);
   const updateRowIndent = useTaskStore((s) => s.updateRowIndent);
   const addRow = useTaskStore((s) => s.addRow);
+  const addRows = useTaskStore((s) => s.addRows);
   const removeRow = useTaskStore((s) => s.removeRow);
   const toggleCollapse = useTaskStore((s) => s.toggleCollapse);
   const duplicateRow = useTaskStore((s) => s.duplicateRow);
@@ -49,6 +50,24 @@ export function TaskRow({
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [newTag, setNewTag] = useState('');
+
+  const firstColId = columns[0]?.id;
+
+  function handleMultiPaste(text: string) {
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length === 0) return;
+    if (lines.length === 1) {
+      updateCell(row.id, firstColId, lines[0]);
+    } else {
+      const rowsToAdd = lines.slice(1).map(line => ({
+        indent: row.indent,
+        cells: { ...Object.fromEntries(columns.map(c => [c.id, null])) },
+      }));
+      rowsToAdd.forEach((r, i) => { r.cells[firstColId] = lines[i + 1]; });
+      addRows(row.id, rowsToAdd);
+      updateCell(row.id, firstColId, lines[0]);
+    }
+  }
 
   const hasChildren = allRows.some(
     (r) => r.indent === row.indent + 1 && isDirectChild(allRows, row, r)
@@ -78,7 +97,6 @@ export function TaskRow({
     [row.id, row.indent, row.cells, addRow, updateRowIndent, removeRow]
   );
 
-  const firstColId = columns[0]?.id;
   const taskValue = firstColId ? row.cells[firstColId] : null;
   const isTaskEmpty = taskValue === null || taskValue === '';
 
@@ -100,7 +118,6 @@ export function TaskRow({
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      {/* Drop indicator lines */}
       {dropTarget === 'before' && (
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-500 z-10" />
       )}
@@ -108,7 +125,6 @@ export function TaskRow({
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 z-10" />
       )}
 
-      {/* Fixed gutter: only drag handle */}
       <div
         className="shrink-0 flex items-center justify-center"
         style={{ width: GUTTER_WIDTH }}
@@ -121,7 +137,6 @@ export function TaskRow({
         </span>
       </div>
 
-      {/* Cells: first column gets indent padding, others are normal */}
       {columns.map((col, colIndex) => {
         const isFirst = colIndex === 0;
         const indentPadding = isFirst ? row.indent * INDENT_UNIT : 0;
@@ -133,13 +148,11 @@ export function TaskRow({
             className="relative border-r border-zinc-100 dark:border-zinc-800/50 last:border-r-0"
             style={{ width: col.width || 150 }}
           >
-            {/* Indent area + collapse toggle for first column */}
             {isFirst && (
               <div
                 className="absolute inset-y-0 flex items-center"
                 style={{ left: 0, width: indentPadding }}
               >
-                {/* Collapse toggle at the end of indent area */}
                 {viewMode === 'outline' && hasChildren && (
                   <button
                     onClick={() => toggleCollapse(row.id)}
@@ -158,6 +171,7 @@ export function TaskRow({
                   value={row.cells[col.id] ?? null}
                   onChange={(val) => updateCell(row.id, col.id, val)}
                   onKeyDown={(e) => handleKeyDown(e, col.id)}
+                  onPaste={isFirst ? handleMultiPaste : undefined}
                 />
               </div>
             )}
@@ -165,7 +179,6 @@ export function TaskRow({
         );
       })}
 
-      {/* Tags */}
       {row.tags && row.tags.length > 0 && (
         <div className="flex items-center gap-1 px-2">
           {row.tags.map((tag) => (
@@ -185,7 +198,6 @@ export function TaskRow({
         </div>
       )}
 
-      {/* Context menu */}
       {contextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />

@@ -2,11 +2,16 @@ import { z } from 'zod';
 
 export type ColumnType = 'text' | 'datetime' | 'enum' | 'number' | 'checkbox';
 
+export const EnumOptionSchema = z.object({
+  label: z.string(),
+  color: z.string().optional(),
+});
+
 export const ColumnDefSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['text', 'datetime', 'enum', 'number', 'checkbox']),
-  options: z.array(z.string()).optional(),
+  options: z.array(EnumOptionSchema).optional(),
   width: z.number().optional(),
 });
 
@@ -42,6 +47,7 @@ export const TaskStateSchema = z.object({
 });
 
 export type ColumnDef = z.infer<typeof ColumnDefSchema>;
+export type EnumOption = z.infer<typeof EnumOptionSchema>;
 export type TaskRow = z.infer<typeof TaskRowSchema>;
 export type Directory = z.infer<typeof DirectorySchema>;
 export type Task = z.infer<typeof TaskSchema>;

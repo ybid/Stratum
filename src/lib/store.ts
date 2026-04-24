@@ -1,10 +1,20 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type { Directory, Task, ColumnDef, TaskRow, ViewMode, Locale, TaskState } from './types';
-import { loadState, saveState } from './storage';
 
 function generateId(): string {
   return nanoid(10);
+}
+
+function getDefaultState(): TaskState {
+  return {
+    directories: [],
+    tasks: [],
+    activeTaskId: null,
+    sidebarOpen: true,
+    viewMode: 'outline',
+    locale: 'en',
+  };
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
@@ -13,23 +23,6 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
 
 function createDefaultRows(): TaskRow[] {
   return [{ id: generateId(), indent: 0, cells: { task: null }, collapsed: false }];
-}
-
-function getInitialState(): TaskState {
-  const saved = loadState();
-  if (saved && saved.directories) return saved;
-  const dirId = generateId();
-  const taskId = generateId();
-  return {
-    directories: [{ id: dirId, name: 'My Project', collapsed: false }],
-    tasks: [
-      { id: taskId, directoryId: dirId, name: 'Getting Started', columns: [...DEFAULT_COLUMNS], rows: createDefaultRows() },
-    ],
-    activeTaskId: taskId,
-    sidebarOpen: true,
-    viewMode: 'outline',
-    locale: 'en',
-  };
 }
 
 function updateActiveTask(tasks: Task[], activeTaskId: string | null, updater: (task: Task) => Task): Task[] {
@@ -56,6 +49,7 @@ interface TaskActions {
   updateColumn: (id: string, partial: Partial<ColumnDef>) => void;
   removeColumn: (id: string) => void;
   addRow: (afterId: string | null, indent: number) => void;
+  addRows: (afterId: string | null, rows: { indent: number; cells: Record<string, string | number | boolean | null> }[]) => void;
   updateCell: (rowId: string, colId: string, value: string | number | boolean | null) => void;
   updateRowIndent: (rowId: string, indent: number) => void;
   removeRow: (id: string) => void;
@@ -79,13 +73,28 @@ interface TaskActions {
   canRedo: () => boolean;
   addTag: (rowId: string, tag: string) => void;
   removeTag: (rowId: string, tag: string) => void;
+  isLoading: boolean;
+  init: () => Promise<void>;
 }
 
 const MAX_HISTORY = 50;
 
 export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((set, get) => {
-  function persist(state: TaskState) {
-    saveState(state);
+  let persistTimeout: NodeJS.Timeout | null = null;
+
+  async function persist(state: TaskState) {
+    if (persistTimeout) clearTimeout(persistTimeout);
+    persistTimeout = setTimeout(async () => {
+      try {
+        await fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save', state }),
+        });
+      } catch (error) {
+        console.error('Failed to persist state:', error);
+      }
+    }, 100);
   }
 
   function pushHistory(state: TaskState) {
@@ -96,10 +105,39 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
   }
 
   return {
-    ...getInitialState(),
+    ...getDefaultState(),
     past: [],
     future: [],
     filter: '',
+    isLoading: true,
+
+    init: async () => {
+      try {
+        await fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'init' }),
+        });
+
+        const res = await fetch('/api/state');
+        if (!res.ok) throw new Error('Failed to load state');
+        const state = await res.json();
+        set({ ...state, isLoading: false });
+      } catch (error) {
+        console.error('Failed to load state:', error);
+        const dirId = generateId();
+        const taskId = generateId();
+        set({
+          directories: [{ id: dirId, name: 'My Project', collapsed: false }],
+          tasks: [{ id: taskId, directoryId: dirId, name: 'Getting Started', columns: [...DEFAULT_COLUMNS], rows: createDefaultRows() }],
+          activeTaskId: taskId,
+          sidebarOpen: true,
+          viewMode: 'outline',
+          locale: 'en',
+          isLoading: false,
+        });
+      }
+    },
 
     undo: () => {
       const { past, future } = get();
@@ -323,6 +361,31 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
       set(next);
     },
 
+    addRows: (afterId, newRows) => {
+      const state = get();
+      pushHistory(state);
+      const next = {
+        ...state,
+        tasks: updateActiveTask(state.tasks, state.activeTaskId, (t) => {
+          const rowsToInsert = newRows.map((r) => ({
+            id: generateId(),
+            indent: r.indent,
+            cells: { ...r.cells },
+            collapsed: false,
+          }));
+          if (afterId === null) {
+            return { ...t, rows: [...t.rows, ...rowsToInsert] };
+          }
+          const idx = t.rows.findIndex((r) => r.id === afterId);
+          const rows = [...t.rows];
+          rows.splice(idx + 1, 0, ...rowsToInsert);
+          return { ...t, rows };
+        }),
+      };
+      persist(next);
+      set(next);
+    },
+
     updateCell: (rowId, colId, value) => {
       const state = get();
       pushHistory(state);
@@ -528,7 +591,6 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
       const next = {
         ...state,
         tasks: updateActiveTask(state.tasks, state.activeTaskId, (t) => {
-          // Group rows into root + children hierarchies
           const hierarchies: { root: TaskRow; children: TaskRow[] }[] = [];
           let currentRoot: { root: TaskRow; children: TaskRow[] } | null = null;
 
@@ -541,7 +603,6 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
             }
           }
 
-          // Sort helper
           function getValue(row: TaskRow): string | number | boolean | null {
             return row.cells[columnId] ?? null;
           }
@@ -562,10 +623,8 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
             return direction === 'asc' ? cmp : -cmp;
           }
 
-          // Sort hierarchies by root value
           hierarchies.sort(compareRoots);
 
-          // Flatten back to rows array, keeping children after their parent
           const sortedRows: TaskRow[] = [];
           for (const h of hierarchies) {
             sortedRows.push(h.root);
@@ -693,3 +752,5 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
     },
   };
 });
+
+export { generateId };
