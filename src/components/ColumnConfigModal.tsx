@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
+import { toast } from '@/lib/toast-store';
 import type { ColumnDef, ColumnType, EnumOption } from '@/lib/types';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -110,6 +111,7 @@ export function ColumnConfigModal({ column, onClose }: Props) {
         options: type === 'enum' ? enumOptions.filter(o => o.label.trim()) : undefined,
       });
     }
+    toast.success(t(locale, 'toastSaveSuccess'));
     onClose();
   }
 
@@ -120,6 +122,7 @@ export function ColumnConfigModal({ column, onClose }: Props) {
   function confirmDelete() {
     if (column) {
       removeColumn(column.id);
+      toast.success(t(locale, 'toastDeleteSuccess'));
       onClose();
     }
   }

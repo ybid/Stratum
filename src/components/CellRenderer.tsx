@@ -64,16 +64,28 @@ export function CellRenderer({ column, value, onChange, onKeyDown, onPaste }: Pr
         />
       );
 
-    case 'datetime':
+    case 'datetime': {
+      console.log('[CellRenderer] datetime render, value:', value, 'colId:', column.id);
       return (
         <input
           type="datetime-local"
-          className="w-full px-2 py-1 text-sm bg-transparent outline-none"
+          className="w-full px-2 py-1 text-sm bg-transparent outline-none cursor-pointer"
           value={(value as string) ?? ''}
-          onChange={(e) => onChange(e.target.value || null)}
+          onChange={(e) => {
+            const val = e.target.value;
+            console.log('[datetime] onChange event triggered, value:', val);
+            if (val) {
+              console.log('[datetime] calling onChange with:', val);
+              onChange(val);
+            } else {
+              console.log('[datetime] calling onChange with null');
+              onChange(null);
+            }
+          }}
           onKeyDown={onKeyDown}
         />
       );
+    }
 
     case 'checkbox':
       return (
@@ -88,10 +100,10 @@ export function CellRenderer({ column, value, onChange, onKeyDown, onPaste }: Pr
     case 'enum': {
       const selected = getSelectedOption();
       return (
-        <div ref={ref} className="relative w-full">
+        <div ref={ref} className="relative w-full h-full">
           <button
             type="button"
-            className="w-full px-2 py-1 text-sm text-left flex items-center gap-2 outline-none"
+            className="w-full h-full px-2 py-1 text-sm text-left flex items-center gap-2 outline-none min-h-[28px]"
             onClick={() => setOpen(!open)}
           >
             {selected?.color && (
@@ -103,11 +115,12 @@ export function CellRenderer({ column, value, onChange, onKeyDown, onPaste }: Pr
             <span className={selected ? '' : 'text-zinc-400'}>
               {selected?.label || '—'}
             </span>
+            <span className="ml-auto text-zinc-400">▾</span>
           </button>
           {open && (
-            <div className="absolute z-50 top-full left-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg min-w-[120px] max-h-[200px] overflow-y-auto">
+            <div className="absolute z-50 top-full left-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg min-w-[140px] max-h-[200px] overflow-y-auto">
               <button
-                className="w-full px-2 py-1 text-sm text-left text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                className="w-full px-2 py-2 text-sm text-left text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                 onClick={() => { onChange(null); setOpen(false); }}
               >
                 —
@@ -115,7 +128,7 @@ export function CellRenderer({ column, value, onChange, onKeyDown, onPaste }: Pr
               {column.options?.map((opt) => (
                 <button
                   key={opt.label}
-                  className="w-full px-2 py-1 text-sm text-left flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  className="w-full px-2 py-2 text-sm text-left flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                   onClick={() => { onChange(opt.label); setOpen(false); }}
                 >
                   <span

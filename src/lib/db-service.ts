@@ -3,14 +3,14 @@ import type { Directory, Task, TaskRow, TaskState, ColumnDef } from './types';
 import { generateId } from './store';
 
 export async function loadState(): Promise<TaskState> {
-  const [dirRows] = await pool.query('SELECT * FROM directories ORDER BY created_at');
+  const [dirRows] = await pool.query('SELECT * FROM directories ORDER BY created_at') as [any[], any];
   const directories: Directory[] = dirRows.map((r: any) => ({
     id: r.id,
     name: r.name,
     collapsed: Boolean(r.collapsed),
   }));
 
-  const [taskRows] = await pool.query('SELECT * FROM tasks ORDER BY created_at');
+  const [taskRows] = await pool.query('SELECT * FROM tasks ORDER BY created_at') as [any[], any];
   const tasks: Task[] = await Promise.all(
     taskRows.map(async (t: any) => {
       const columns: ColumnDef[] = typeof t.columns === 'string' ? JSON.parse(t.columns) : t.columns;
@@ -76,7 +76,7 @@ export async function saveTasks(tasks: Task[]) {
   }
 }
 
-export async function saveAppState(state: { activeTaskId: string | null; sidebarOpen: boolean; viewMode: 'outline' | 'flat'; locale: 'zh' | 'en' }) {
+export async function saveAppState(state: { activeTaskId: string | null; sidebarOpen: boolean; viewMode: 'outline' | 'flat' | 'kanban' | 'calendar' | 'gantt'; locale: 'zh' | 'en' }) {
   await pool.query(
     'UPDATE app_state SET active_task_id = ?, sidebar_open = ?, view_mode = ?, locale = ? WHERE id = 1',
     [state.activeTaskId, state.sidebarOpen ? 1 : 0, state.viewMode, state.locale]

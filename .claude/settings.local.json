@@ -24,7 +24,11 @@
       "Bash(corepack enable *)",
       "Bash(netstat -ano)",
       "Bash(taskkill //F //PID 7916)",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "WebSearch",
+      "Bash(pnpm build *)",
+      "Bash(npm run *)",
+      "Bash(findstr /i \"error\")"
     ]
   }
 }

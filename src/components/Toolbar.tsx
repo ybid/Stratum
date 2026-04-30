@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTaskStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
+import { toast } from '@/lib/toast-store';
+import { ThemeSwitcher } from './ThemeSwitcher';
+import { QuickAdd } from './QuickAdd';
+import { AdvancedFilter } from './AdvancedFilter';
+import { UserMenu } from './UserMenu';
+import { useCommandStore } from '@/lib/command-store';
 import type { ViewMode, Locale } from '@/lib/types';
 
 export function Toolbar() {
@@ -14,15 +20,28 @@ export function Toolbar() {
   const setLocale = useTaskStore((s) => s.setLocale);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const setFilter = useTaskStore((s) => s.setFilter);
-  const undo = useTaskStore((s) => s.undo);
-  const redo = useTaskStore((s) => s.redo);
-  const canUndo = useTaskStore((s) => s.canUndo);
-  const canRedo = useTaskStore((s) => s.canRedo);
   const collapseAll = useTaskStore((s) => s.collapseAll);
   const expandAll = useTaskStore((s) => s.expandAll);
   const exportData = useTaskStore((s) => s.exportData);
   const importData = useTaskStore((s) => s.importData);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const undo = useCallback(() => useTaskStore.getState().undo(), []);
+  const redo = useCallback(() => useTaskStore.getState().redo(), []);
+  const canUndo = useTaskStore((s) => s.canUndo);
+  const canRedo = useTaskStore((s) => s.canRedo);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -30,25 +49,32 @@ export function Toolbar() {
         if (e.shiftKey) {
           e.preventDefault();
           redo();
+          toast.info(t(locale, 'toastRedoSuccess'));
         } else {
           e.preventDefault();
           undo();
+          toast.info(t(locale, 'toastUndoSuccess'));
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, locale]);
 
   function handleExport() {
-    const json = exportData();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stratum-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const json = exportData();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stratum-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t(locale, 'toastExportSuccess'));
+    } catch {
+      toast.error(t(locale, 'toastExportError'));
+    }
   }
 
   function handleImport() {
@@ -58,9 +84,15 @@ export function Toolbar() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      const text = await file.text();
-      if (!importData(text)) {
-        alert(locale === 'zh' ? '导入失败：无效的文件格式' : 'Import failed: invalid file format');
+      try {
+        const text = await file.text();
+        if (!importData(text)) {
+          toast.error(t(locale, 'toastImportError'));
+        } else {
+          toast.success(t(locale, 'toastImportSuccess'));
+        }
+      } catch {
+        toast.error(t(locale, 'toastImportError'));
       }
     };
     input.click();
@@ -68,7 +100,7 @@ export function Toolbar() {
 
   return (
     <header className="flex items-center justify-between px-4 h-10 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shrink-0">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={toggleSidebar}
           className="mr-2 p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
@@ -80,8 +112,18 @@ export function Toolbar() {
           </svg>
         </button>
         <h1 className="text-sm font-semibold mr-4">Stratum</h1>
-        <ViewModeButton mode="outline" current={viewMode} onClick={setViewMode} locale={locale} />
-        <ViewModeButton mode="flat" current={viewMode} onClick={setViewMode} locale={locale} />
+
+        <select
+          value={viewMode}
+          onChange={(e) => setViewMode(e.target.value as ViewMode)}
+          className="px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 outline-none"
+        >
+          <option value="outline">{locale === 'zh' ? '大纲' : 'Outline'}</option>
+          <option value="flat">{locale === 'zh' ? '平铺' : 'Flat'}</option>
+          <option value="kanban">{locale === 'zh' ? '看板' : 'Kanban'}</option>
+          <option value="calendar">{locale === 'zh' ? '日历' : 'Calendar'}</option>
+          <option value="gantt">{locale === 'zh' ? '甘特图' : 'Gantt'}</option>
+        </select>
 
         <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-2" />
 
@@ -111,70 +153,57 @@ export function Toolbar() {
         <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-2" />
 
         <button
-          onClick={collapseAll}
+          onClick={() => setShowMenu(!showMenu)}
           className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          title={locale === 'zh' ? '全部折叠' : 'Collapse All'}
+          title={locale === 'zh' ? '更多' : 'More'}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="4 14 10 14 10 20"/>
-            <polyline points="20 10 14 10 14 4"/>
-            <line x1="10" y1="14" x2="21" y2="3"/>
-            <line x1="3" y1="21" x2="14" y2="10"/>
+            <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
           </svg>
         </button>
-        <button
-          onClick={expandAll}
-          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          title={locale === 'zh' ? '全部展开' : 'Expand All'}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="15 3 21 3 21 9"/>
-            <polyline points="9 21 3 21 3 15"/>
-            <line x1="21" y1="3" x2="14" y2="10"/>
-            <line x1="3" y1="21" x2="10" y2="14"/>
-          </svg>
-        </button>
+        {showMenu && (
+          <div ref={menuRef} className="absolute top-10 left-44 z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg py-1 min-w-[160px]">
+            <button
+              onClick={() => { collapseAll(); setShowMenu(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {locale === 'zh' ? '全部折叠' : 'Collapse All'}
+            </button>
+            <button
+              onClick={() => { expandAll(); setShowMenu(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {locale === 'zh' ? '全部展开' : 'Expand All'}
+            </button>
+            <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+            <button
+              onClick={() => { handleImport(); setShowMenu(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {locale === 'zh' ? '导入 JSON' : 'Import JSON'}
+            </button>
+            <button
+              onClick={() => { handleExport(); setShowMenu(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {locale === 'zh' ? '导出 JSON' : 'Export JSON'}
+            </button>
+            <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+            <button
+              onClick={() => { setShowShortcuts(true); setShowMenu(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {locale === 'zh' ? '快捷键' : 'Keyboard Shortcuts'}
+            </button>
+          </div>
+        )}
 
-        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-2" />
-
-        <button
-          onClick={handleImport}
-          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          title={locale === 'zh' ? '导入' : 'Import'}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-        </button>
-        <button
-          onClick={handleExport}
-          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          title={locale === 'zh' ? '导出' : 'Export'}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </button>
-
-        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-2" />
-
-        <button
-          onClick={() => setShowShortcuts(!showShortcuts)}
-          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          title={locale === 'zh' ? '快捷键' : 'Shortcuts'}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="4" width="20" height="16" rx="2"/>
-            <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M6 16h8"/>
-          </svg>
-        </button>
+        <QuickAdd />
+        <ThemeSwitcher />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
+        <AdvancedFilter />
         <input
           type="text"
           value={filter}
@@ -188,6 +217,7 @@ export function Toolbar() {
         >
           {locale === 'zh' ? '中文' : 'EN'}
         </button>
+        <UserMenu />
       </div>
 
       {showShortcuts && (

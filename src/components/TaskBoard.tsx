@@ -2,11 +2,15 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useTaskStore } from '@/lib/store';
+import { useFilterStore } from '@/lib/filter-store';
 import { t } from '@/lib/i18n';
-import type { TaskRow as TaskRowType } from '@/lib/types';
+import { applyFilters } from './AdvancedFilter';
+import type { TaskRow as TaskRowType, ColumnDef } from '@/lib/types';
 import { ColumnHeader } from './ColumnHeader';
-import { TaskRow as TaskRowComponent } from './TaskRow';
+import { TaskRow } from './TaskRow';
+import { ConfirmDialog } from './ConfirmDialog';
 
+// Constants
 export const GUTTER_WIDTH = 28;
 export const INDENT_UNIT = 24;
 
@@ -21,6 +25,7 @@ export function TaskBoard() {
   const duplicateRow = useTaskStore((s) => s.duplicateRow);
   const removeRows = useTaskStore((s) => s.removeRows);
   const sortByColumn = useTaskStore((s) => s.sortByColumn);
+  const conditions = useFilterStore((s) => s.conditions);
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
 
@@ -29,6 +34,7 @@ export function TaskBoard() {
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleDragStart = useCallback((rowId: string) => {
     setDragSourceId(rowId);
@@ -125,6 +131,7 @@ export function TaskBoard() {
   const handleBatchDelete = useCallback(() => {
     removeRows(Array.from(selectedRowIds));
     setSelectedRowIds(new Set());
+    setShowDeleteConfirm(false);
   }, [selectedRowIds, removeRows]);
 
   const handleBatchDuplicate = useCallback(() => {
@@ -175,32 +182,47 @@ export function TaskBoard() {
 
   const { columns, rows } = activeTask;
 
-  // Filter rows based on filter query
   const filteredRows = useMemo(() => {
-    if (!filter.trim()) return rows;
-    const query = filter.toLowerCase();
-    return rows.filter((row) => {
-      return Object.values(row.cells).some((val) => {
-        if (val === null || val === undefined) return false;
-        return String(val).toLowerCase().includes(query);
+    let result = rows;
+
+    if (filter.trim()) {
+      const query = filter.toLowerCase();
+      result = result.filter((row) => {
+        return Object.values(row.cells).some((val) => {
+          if (val === null || val === undefined) return false;
+          return String(val).toLowerCase().includes(query);
+        });
       });
-    });
-  }, [rows, filter]);
+    }
+
+    if (conditions.length > 0) {
+      result = applyFilters(result, conditions);
+    }
+
+    return result;
+  }, [rows, filter, conditions]);
 
   const visibleRows = viewMode === 'outline' ? getVisibleRows(filteredRows) : filteredRows;
 
   return (
-    <div className="w-full" onKeyDown={handleKeyDown} tabIndex={-1}>
-      {/* Column headers */}
-      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 sticky top-0 z-10">
+    <div className="w-full min-w-0 h-full flex flex-col" onKeyDown={handleKeyDown} tabIndex={-1}>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={locale === 'zh' ? '确认删除' : 'Confirm Delete'}
+        message={locale === 'zh' ? `确定要删除选中的 ${selectedRowIds.size} 行吗？` : `Delete ${selectedRowIds.size} selected row(s)?`}
+        locale={locale}
+        onConfirm={handleBatchDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shrink-0">
         <div className="shrink-0" style={{ width: GUTTER_WIDTH }} />
         <ColumnHeader columns={columns} onSort={handleSort} sortConfig={sortConfig} />
       </div>
 
-      {/* Rows */}
-      <div>
+      <div className="flex-1 overflow-auto">
         {visibleRows.map((row) => (
-          <TaskRowComponent
+          <TaskRow
             key={row.id}
             row={row}
             allRows={filteredRows}
@@ -219,44 +241,17 @@ export function TaskBoard() {
         ))}
       </div>
 
-      {/* Selection info bar */}
       {selectedRowIds.size > 1 && (
         <div className="flex items-center gap-3 px-3 py-1 text-xs bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-b border-blue-200 dark:border-blue-800">
           <span>{selectedRowIds.size} rows selected</span>
-          <button
-            onClick={() => handleBatchIndent(-1)}
-            className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
-          >
-            ← Outdent
-          </button>
-          <button
-            onClick={() => handleBatchIndent(1)}
-            className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
-          >
-            Indent →
-          </button>
-          <button
-            onClick={handleBatchDuplicate}
-            className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
-          >
-            Duplicate
-          </button>
-          <button
-            onClick={handleBatchDelete}
-            className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-600"
-          >
-            Delete
-          </button>
-          <button
-            onClick={() => setSelectedRowIds(new Set())}
-            className="ml-auto text-blue-400 hover:text-blue-600"
-          >
-            ✕ Clear
-          </button>
+          <button onClick={() => handleBatchIndent(-1)} className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800">← Outdent</button>
+          <button onClick={() => handleBatchIndent(1)} className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800">Indent →</button>
+          <button onClick={handleBatchDuplicate} className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800">Duplicate</button>
+          <button onClick={() => setShowDeleteConfirm(true)} className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-600">Delete</button>
+          <button onClick={() => setSelectedRowIds(new Set())} className="ml-auto text-blue-400 hover:text-blue-600">✕ Clear</button>
         </div>
       )}
 
-      {/* Add row button */}
       <button
         onClick={() => addRow(null, 0)}
         className="w-full text-left px-4 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"

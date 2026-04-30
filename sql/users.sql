@@ -1,0 +1,7 @@
+-- Add to your MySQL database
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(20) PRIMARY KEY,
+  username VARCHAR(20) UNIQUE NOT NULL,
+  password_hash VARCHAR(64) NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

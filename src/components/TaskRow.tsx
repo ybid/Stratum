@@ -63,7 +63,7 @@ export function TaskRow({
         indent: row.indent,
         cells: { ...Object.fromEntries(columns.map(c => [c.id, null])) },
       }));
-      rowsToAdd.forEach((r, i) => { r.cells[firstColId] = lines[i + 1]; });
+      rowsToAdd.forEach((r, i) => { (r.cells as Record<string, string | number | boolean | null>)[firstColId] = lines[i + 1]; });
       addRows(row.id, rowsToAdd);
       updateCell(row.id, firstColId, lines[0]);
     }
@@ -145,7 +145,7 @@ export function TaskRow({
         return (
           <div
             key={col.id}
-            className="relative border-r border-zinc-100 dark:border-zinc-800/50 last:border-r-0"
+            className="relative border-r border-zinc-100 dark:border-zinc-800/50 last:border-r-0 shrink-0"
             style={{ width: col.width || 150 }}
           >
             {isFirst && (
@@ -169,7 +169,10 @@ export function TaskRow({
                 <CellRenderer
                   column={col}
                   value={row.cells[col.id] ?? null}
-                  onChange={(val) => updateCell(row.id, col.id, val)}
+                  onChange={(val) => {
+                    console.log('[TaskRow] onChange callback:', val, 'colId:', col.id, 'rowId:', row.id);
+                    updateCell(row.id, col.id, val);
+                  }}
                   onKeyDown={(e) => handleKeyDown(e, col.id)}
                   onPaste={isFirst ? handleMultiPaste : undefined}
                 />

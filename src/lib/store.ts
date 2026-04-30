@@ -86,11 +86,13 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
     if (persistTimeout) clearTimeout(persistTimeout);
     persistTimeout = setTimeout(async () => {
       try {
+        console.log('[persist] Saving state, tasks count:', state.tasks.length);
         await fetch('/api/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'save', state }),
         });
+        console.log('[persist] Save complete');
       } catch (error) {
         console.error('Failed to persist state:', error);
       }
@@ -388,6 +390,7 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
 
     updateCell: (rowId, colId, value) => {
       const state = get();
+      console.log('[updateCell]', rowId, colId, 'value:', value, 'type:', typeof value);
       pushHistory(state);
       const next = {
         ...state,
@@ -410,8 +413,9 @@ export const useTaskStore = create<TaskState & TaskActions & HistoryState>()((se
           };
         }),
       };
-      persist(next);
+      console.log('[updateCell] new state tasks[0] rows[0] cells:', JSON.stringify(next.tasks[0]?.rows[0]?.cells));
       set(next);
+      persist(next);
     },
 
     updateRowIndent: (rowId, indent) => {

@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTaskStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
+import { toast } from '@/lib/toast-store';
 import type { ColumnDef } from '@/lib/types';
 import { ColumnConfigModal } from './ColumnConfigModal';
 

@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'save') {
       const { directories, tasks, activeTaskId, sidebarOpen, viewMode, locale } = state as TaskState;
+      console.log('[API] save action, tasks:', tasks?.length, 'rows:', tasks?.[0]?.rows?.length);
       const connection = await pool.getConnection();
       try {
         await connection.beginTransaction();
